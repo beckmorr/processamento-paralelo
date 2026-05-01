@@ -1,0 +1,3 @@
+gauss_blur_seq
+gauss_blur_omp
+*.png
