@@ -57,11 +57,9 @@ int main(int argc, char *argv[]) {
 
     double start = omp_get_wtime();
 
-    // Criamos a região paralela APENAS UMA VEZ aqui fora
     #pragma omp parallel
     {
         for (int it = 0; it < iterations; it++) {
-            // Cada thread processa um conjunto de linhas definido estaticamente
             #pragma omp for schedule(static)
             for (int i = 0; i < h; i++) {
                 for (int j = 0; j < w; j++) {
@@ -78,17 +76,12 @@ int main(int argc, char *argv[]) {
                     dst->data[i * w + j] = pixel_sum;
                 }
             }
-
-            // Barreira implícita no final do 'for' garante que todas as threads terminaram a imagem
-            
-            // Apenas uma thread faz a troca de ponteiros para a próxima iteração
             #pragma omp single
             {
                 Image *temp = src;
                 src = dst;
                 dst = temp;
             }
-            // Barreira implícita no final do 'single' impede que threads comecem a próxima iteração antes da troca
         }
     }
 
