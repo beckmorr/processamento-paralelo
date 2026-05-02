@@ -1,10 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-
-#ifdef _OPENMP
-#include <omp.h>
-#endif
+#include <omp.h> // Trocado time.h por omp.h
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -30,12 +27,12 @@ void create_gaussian_kernel(float *kernel, int size, float sigma) {
     for (int i = 0; i < size * size; i++) kernel[i] /= sum;
 }
 
-void apply_blur_omp(Image *src, Image *dst, float *kernel, int k_size) {
+void apply_blur_parallel(Image *src, Image *dst, float *kernel, int k_size) {
     int half = k_size / 2;
     int h = src->height;
     int w = src->width;
 
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static) collapse(1)
     for (int i = 0; i < h; i++) {
         for (int j = 0; j < w; j++) {
             float pixel_sum = 0.0f;
@@ -64,15 +61,12 @@ int main(int argc, char *argv[]) {
 
     char *filename = argv[1];
     int iterations = (argc > 2) ? atoi(argv[2]) : 10;
-    int k_size = 3;
+    int k_size = 5;
     float sigma = 1.0f;
 
     int width, height, channels;
     unsigned char *raw_image = stbi_load(filename, &width, &height, &channels, 1);
-    if (!raw_image) {
-        printf("Erro ao carregar a imagem.\n");
-        return 1;
-    }
+    if (!raw_image) return 1;
 
     Image img1 = {width, height, (float *)malloc(width * height * sizeof(float))};
     Image img2 = {width, height, (float *)malloc(width * height * sizeof(float))};
@@ -84,29 +78,19 @@ int main(int argc, char *argv[]) {
     Image *src = &img1;
     Image *dst = &img2;
 
-    double start = 0.0, end = 0.0;
-
-    #ifdef _OPENMP
-    start = omp_get_wtime();
-    #endif
+    double start = omp_get_wtime();
 
     for (int it = 0; it < iterations; it++) {
-        apply_blur_omp(src, dst, kernel, k_size);
+        apply_blur_parallel(src, dst, kernel, k_size);
         Image *temp = src; src = dst; dst = temp;
     }
 
-    #ifdef _OPENMP
-    end = omp_get_wtime();
-    printf("Speedup Test - Arquivo: %s | Iteracoes: %d | Tempo OMP: %.4f s\n", filename, iterations, end - start);
-    #else
-    printf("Compilado sequencialmente (sem flag -fopenmp).\n");
-    #endif
-
-    unsigned char *output_data = (unsigned char *)malloc(width * height);
-    for (int i = 0; i < width * height; i++) output_data[i] = (unsigned char)src->data[i];
-    stbi_write_png("saida_blur_omp.png", width, height, 1, output_data, width);
+    double end = omp_get_wtime();
+    
+    printf("Benchmark OpenMP - Arquivo: %s | Threads: %d | Iteracoes: %d | Tempo: %.4f s\n", 
+           filename, omp_get_max_threads(), iterations, end - start);
 
     stbi_image_free(raw_image);
-    free(img1.data); free(img2.data); free(kernel); free(output_data);
+    free(img1.data); free(img2.data); free(kernel);
     return 0;
 }
