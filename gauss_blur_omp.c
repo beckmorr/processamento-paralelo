@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <omp.h> // Trocado time.h por omp.h
+#include <omp.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -11,6 +11,7 @@
 typedef struct {
     int width;
     int height;
+    int stride;
     float *data;
 } Image;
 
@@ -27,32 +28,6 @@ void create_gaussian_kernel(float *kernel, int size, float sigma) {
     for (int i = 0; i < size * size; i++) kernel[i] /= sum;
 }
 
-void apply_blur_parallel(Image *src, Image *dst, float *kernel, int k_size) {
-    int half = k_size / 2;
-    int h = src->height;
-    int w = src->width;
-
-    #pragma omp parallel for schedule(static) collapse(1)
-    for (int i = 0; i < h; i++) {
-        for (int j = 0; j < w; j++) {
-            float pixel_sum = 0.0f;
-            
-            for (int ki = -half; ki <= half; ki++) {
-                for (int kj = -half; kj <= half; kj++) {
-                    int ni = i + ki;
-                    int nj = j + kj;
-                    
-                    if (ni < 0) ni = 0; else if (ni >= h) ni = h - 1;
-                    if (nj < 0) nj = 0; else if (nj >= w) nj = w - 1;
-                    
-                    pixel_sum += src->data[ni * w + nj] * kernel[(ki + half) * k_size + (kj + half)];
-                }
-            }
-            dst->data[i * w + j] = pixel_sum;
-        }
-    }
-}
-
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("Uso: %s <arquivo_imagem> <iteracoes>\n", argv[0]);
@@ -60,34 +35,66 @@ int main(int argc, char *argv[]) {
     }
 
     char *filename = argv[1];
-    int iterations = (argc > 2) ? atoi(argv[2]) : 10;
-    int k_size = 5;
+    int iterations = (argc > 2) ? atoi(argv[2]) : 100;
+    int k_size = 3;
+    int half = k_size / 2;
     float sigma = 1.0f;
 
     int width, height, channels;
     unsigned char *raw_image = stbi_load(filename, &width, &height, &channels, 1);
     if (!raw_image) return 1;
 
-    Image img1 = {width, height, (float *)malloc(width * height * sizeof(float))};
-    Image img2 = {width, height, (float *)malloc(width * height * sizeof(float))};
+    int p_w = width + 2 * half;
+    int p_h = height + 2 * half;
+    
+    Image img1 = {width, height, p_w, (float *)malloc(p_w * p_h * sizeof(float))};
+    Image img2 = {width, height, p_w, (float *)malloc(p_w * p_h * sizeof(float))};
     float *kernel = (float *)malloc(k_size * k_size * sizeof(float));
-
-    for (int i = 0; i < width * height; i++) img1.data[i] = (float)raw_image[i];
     create_gaussian_kernel(kernel, k_size, sigma);
+
+    for (int i = 0; i < p_h; i++) {
+        for (int j = 0; j < p_w; j++) {
+            int orig_i = i - half;
+            int orig_j = j - half;
+            if (orig_i < 0) orig_i = 0; else if (orig_i >= height) orig_i = height - 1;
+            if (orig_j < 0) orig_j = 0; else if (orig_j >= width) orig_j = width - 1;
+            img1.data[i * p_w + j] = (float)raw_image[orig_i * width + orig_j];
+        }
+    }
 
     Image *src = &img1;
     Image *dst = &img2;
 
     double start = omp_get_wtime();
 
-    for (int it = 0; it < iterations; it++) {
-        apply_blur_parallel(src, dst, kernel, k_size);
-        Image *temp = src; src = dst; dst = temp;
+    #pragma omp parallel
+    {
+        for (int it = 0; it < iterations; it++) {
+            #pragma omp for schedule(static)
+            for (int i = half; i < height + half; i++) {
+                for (int j = half; j < width + half; j++) {
+                    float pixel_sum = 0.0f;
+                    
+                    for (int ki = -half; ki <= half; ki++) {
+                        for (int kj = -half; kj <= half; kj++) {
+                            pixel_sum += src->data[(i + ki) * p_w + (j + kj)] * 
+                                         kernel[(ki + half) * k_size + (kj + half)];
+                        }
+                    }
+                    dst->data[i * p_w + j] = pixel_sum;
+                }
+            }
+
+            #pragma omp single
+            {
+                Image *temp = src; src = dst; dst = temp;
+            } 
+        }
     }
 
     double end = omp_get_wtime();
     
-    printf("Benchmark OpenMP - Arquivo: %s | Threads: %d | Iteracoes: %d | Tempo: %.4f s\n", 
+    printf("Arquivo: %s | Threads: %d | Iteracoes: %d | Tempo: %.4f s\n", 
            filename, omp_get_max_threads(), iterations, end - start);
 
     stbi_image_free(raw_image);

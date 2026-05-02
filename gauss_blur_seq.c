@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
 
     char *filename = argv[1];
     int iterations = (argc > 2) ? atoi(argv[2]) : 10;
-    int k_size = 5;
+    int k_size = 3;
     float sigma = 1.0f;
 
     int width, height, channels;
