@@ -1,4 +1,4 @@
-# BENCHMARK DE SUAVIZAÇÃO/DESFOQUE GAUSSIANO ITERATIVO: IMPLEMENTAÇÃO SEQUENCIAL E PARALELA EM MEMÓRIA COMPARTILHADA COM OPENMP
+# PROCESSAMENTO PARALELO
 
 **Autores:** Anderson Morbeck Pires, Marco Túlio Macêdo Oliveira dos Santos  
 **Disciplina:** Processamento Paralelo (DEC107)  
