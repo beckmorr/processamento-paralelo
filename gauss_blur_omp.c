@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 #include <omp.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -8,16 +9,13 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-typedef struct {
-    int width;
-    int height;
-    int stride;
-    float *data;
-} Image;
+#define K_SIZE 5
+#define HALF   (K_SIZE / 2)
 
+/* Gera e normaliza o kernel Gaussiano para que a soma seja 1.0. */
 void create_gaussian_kernel(float *kernel, int size, float sigma) {
     int half = size / 2;
-    float sum = 0.0;
+    float sum = 0.0f;
     for (int i = -half; i <= half; i++) {
         for (int j = -half; j <= half; j++) {
             float val = expf(-(i * i + j * j) / (2.0f * sigma * sigma));
@@ -28,7 +26,89 @@ void create_gaussian_kernel(float *kernel, int size, float sigma) {
     for (int i = 0; i < size * size; i++) kernel[i] /= sum;
 }
 
+/* Convolução 2D*/
+void apply_blur(float *src, float *dst, float *kernel, int width, int local_rows, int p_w, int local_start, int height) {
+    int half = HALF;
+    /* Paralelização dentro de linhas locais */
+#pragma omp parallel for schedule(static)
+    for (int li = 0; li < local_rows; li++) {
+        int global_i = local_start + li;
+        for (int j = 0; j < width; j++) {
+            float pixel_sum = 0.0f;
+            for (int ki = -half; ki <= half; ki++) {
+                for (int kj = -half; kj <= half; kj++) {
+                    int ni = global_i + ki;
+                    int nj = j + kj;
+                    if (ni < 0) ni = 0; else if (ni >= height) ni = height - 1;
+                    if (nj < 0) nj = 0; else if (nj >= width)  nj = width - 1;
+                    int local_ni = (ni - local_start) + half;
+                    int local_nj = nj + half;
+                    pixel_sum += src[local_ni * p_w + local_nj] * kernel[(ki + half) * K_SIZE + (kj + half)];
+                }
+            }
+            dst[(li + half) * p_w + (j + half)] = pixel_sum;
+        }
+    }
+}
+
+/* Função para realizar a corretude */
+int run_check_mode_omp(void) {
+    const int width = 5;
+    const int height = 5;
+    const int iterations = 2;
+    const float input[25] = {
+        1, 2, 3, 2, 1,
+        2, 4, 6, 4, 2,
+        3, 6, 9, 6, 3,
+        2, 4, 6, 4, 2,
+        1, 2, 3, 2, 1
+    };
+
+    int p_w = width + 2 * HALF;
+    int p_h = height + 2 * HALF;
+    float kernel[K_SIZE * K_SIZE];
+    create_gaussian_kernel(kernel, K_SIZE, 1.0f);
+
+    float *lsrc = (float *)calloc(p_w * p_h, sizeof(float));
+    float *ldst = (float *)calloc(p_w * p_h, sizeof(float));
+    if (!lsrc || !ldst) {
+        printf("Erro de memoria no modo --check.\n");
+        free(lsrc); free(ldst);
+        return 1;
+    }
+
+    for (int i = 0; i < p_h; i++) {
+        for (int j = 0; j < p_w; j++) {
+            int oi = i - HALF; if (oi < 0) oi = 0; if (oi >= height) oi = height - 1;
+            int oj = j - HALF; if (oj < 0) oj = 0; if (oj >= width)  oj = width - 1;
+            lsrc[i * p_w + j] = input[oi * width + oj];
+        }
+    }
+
+    int local_rows = height;
+    int local_start = 0;
+
+    for (int it = 0; it < iterations; it++) {
+        apply_blur(lsrc, ldst, kernel, width, local_rows, p_w, local_start, height);
+        float *tmp = lsrc; lsrc = ldst; ldst = tmp;
+    }
+
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            printf("%8.4f", lsrc[(i + HALF) * p_w + (j + HALF)]);
+        }
+        printf("\n");
+    }
+
+    free(lsrc); free(ldst);
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
+    if (argc >= 2 && strcmp(argv[1], "--check") == 0) {
+        return run_check_mode_omp();
+    }
+
     if (argc < 2) {
         printf("Uso: %s <arquivo_imagem> <iteracoes>\n", argv[0]);
         return 1;
@@ -36,68 +116,54 @@ int main(int argc, char *argv[]) {
 
     char *filename = argv[1];
     int iterations = (argc > 2) ? atoi(argv[2]) : 100;
-    int k_size = 3;
-    int half = k_size / 2;
     float sigma = 1.0f;
 
     int width, height, channels;
     unsigned char *raw_image = stbi_load(filename, &width, &height, &channels, 1);
-    if (!raw_image) return 1;
+    if (!raw_image) {
+        printf("Erro ao carregar a imagem.\n");
+        return 1;
+    }
 
-    int p_w = width + 2 * half;
-    int p_h = height + 2 * half;
-    
-    Image img1 = {width, height, p_w, (float *)malloc(p_w * p_h * sizeof(float))};
-    Image img2 = {width, height, p_w, (float *)malloc(p_w * p_h * sizeof(float))};
-    float *kernel = (float *)malloc(k_size * k_size * sizeof(float));
-    create_gaussian_kernel(kernel, k_size, sigma);
+    int p_w = width + 2 * HALF;
+    int p_h = height + 2 * HALF;
 
+    float *full_padded = (float *)malloc(p_w * p_h * sizeof(float));
     for (int i = 0; i < p_h; i++) {
         for (int j = 0; j < p_w; j++) {
-            int orig_i = i - half;
-            int orig_j = j - half;
-            if (orig_i < 0) orig_i = 0; else if (orig_i >= height) orig_i = height - 1;
-            if (orig_j < 0) orig_j = 0; else if (orig_j >= width) orig_j = width - 1;
-            img1.data[i * p_w + j] = (float)raw_image[orig_i * width + orig_j];
+            int oi = i - HALF; if (oi < 0) oi = 0; if (oi >= height) oi = height - 1;
+            int oj = j - HALF; if (oj < 0) oj = 0; if (oj >= width)  oj = width - 1;
+            full_padded[i * p_w + j] = (float)raw_image[oi * width + oj];
         }
     }
 
-    Image *src = &img1;
-    Image *dst = &img2;
+    float kernel[K_SIZE * K_SIZE];
+    create_gaussian_kernel(kernel, K_SIZE, sigma);
+
+    int local_rows = height;
+    int local_start = 0;
+    int local_p_h = local_rows + 2 * HALF;
+
+    float *lsrc = (float *)calloc(local_p_h * p_w, sizeof(float));
+    float *ldst = (float *)calloc(local_p_h * p_w, sizeof(float));
+
+    memcpy(lsrc, full_padded, p_w * p_h * sizeof(float));
 
     double start = omp_get_wtime();
-
-    #pragma omp parallel
-    {
-        for (int it = 0; it < iterations; it++) {
-            #pragma omp for schedule(static)
-            for (int i = half; i < height + half; i++) {
-                for (int j = half; j < width + half; j++) {
-                    float pixel_sum = 0.0f;
-                    
-                    for (int ki = -half; ki <= half; ki++) {
-                        for (int kj = -half; kj <= half; kj++) {
-                            pixel_sum += src->data[(i + ki) * p_w + (j + kj)] * 
-                                         kernel[(ki + half) * k_size + (kj + half)];
-                        }
-                    }
-                    dst->data[i * p_w + j] = pixel_sum;
-                }
-            }
-
-            #pragma omp single
-            {
-                Image *temp = src; src = dst; dst = temp;
-            } 
-        }
+    for (int it = 0; it < iterations; it++) {
+        apply_blur(lsrc, ldst, kernel, width, local_rows, p_w, local_start, height);
+        float *tmp = lsrc; lsrc = ldst; ldst = tmp;
     }
-
     double end = omp_get_wtime();
-    
-    printf("Arquivo: %s | Threads: %d | Iteracoes: %d | Tempo: %.4f s\n", 
-           filename, omp_get_max_threads(), iterations, end - start);
 
-    stbi_image_free(raw_image);
-    free(img1.data); free(img2.data); free(kernel);
+    printf("Benchmark OpenMP - Tempo: %.4f s\n", end - start);
+
+    unsigned char *out = malloc(width * height);
+    for (int i = 0; i < height; i++)
+        for (int j = 0; j < width; j++)
+            out[i * width + j] = (unsigned char)lsrc[(i + HALF) * p_w + (j + HALF)];
+    stbi_write_png("saida_blur_omp.png", width, height, 1, out, width);
+
+    free(out); free(full_padded); free(lsrc); free(ldst); free(raw_image);
     return 0;
 }

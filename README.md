@@ -12,7 +12,7 @@ O projeto consiste na implementação do filtro de convolução utilizando másc
 
 - [x] **Sequencial (Baseline):** Implementação de referência em C, otimizada com flags de compilação (`-O3`, `-march=native`) para servir de base comparativa.
 - [x] **OpenMP (Memória Compartilhada):** Focado na exploração de múltiplos núcleos (P-cores e E-cores) em um único processador.
-- [ ] **MPI (Memória Distribuída):** Focado na divisão de domínio e troca de mensagens entre processos, permitindo a execução em clusters de computadores.
+- [x] **MPI (Memória Distribuída):** Focado na divisão de domínio e troca de mensagens entre processos, permitindo a execução em clusters de computadores.
 - [ ] **CUDA (GPU Computing):** Aceleração massivamente paralela para processamento de pixels em larga escala utilizando unidades de processamento gráfico.
 
 ---
@@ -46,3 +46,18 @@ As métricas e testes foram conduzidos no seguinte ambiente técnico:
 - **Sistema Operacional:** Manjaro Linux x86_64.
 - **Compilador:** GCC 13.2.
 - **Bibliotecas:** OpenMP 4.5 e stb_image.
+
+---
+
+## Nota de Transparência sobre o Uso de IA
+
+Declaramos que este projeto contou com o auxílio da ferramenta de IA **Google Gemini** exclusivamente para as tarefas de:
+
+- **Refatoração de código:** Auxílio na adequação da implementação sequencial para espelhar a lógica de *padding* das versões paralelas, visando a paridade experimental necessária para a precisão dos benchmarks.
+- **Orquestração de testes:** Apoio na estruturação de *scripts* em Bash (`.sh`) para automação da bateria de testes, garantindo a execução repetível das 5 rodadas de benchmark por cenário.
+- **Estruturação de documentação:** Apoio na organização lógica dos argumentos no relatório técnico e revisão gramatical/estilística.
+
+Como autores, atestamos que revisamos, testamos e validamos criticamente todo o conteúdo gerado, assumindo total e exclusiva responsabilidade pela correção lógica do código, precisão dos relatórios de desempenho e integridade acadêmica do material entregue.
+
+**Autores:** Anderson Morbeck Pires, Marco Túlio Macêdo Oliveira dos Santos
+**Data:** 28 de Maio de 2026
