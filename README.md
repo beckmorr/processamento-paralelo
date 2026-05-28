@@ -43,6 +43,6 @@ As métricas e testes foram conduzidos no seguinte ambiente técnico:
 - **Processador:** Intel Core i5-13450HX (10 núcleos físicos: 6 P-cores e 4 E-cores).
 - **Threads:** 16 threads lógicos.
 - **Arquitetura:** Híbrida (Performance e Eficiência).
-- **Sistema Operacional:** Pop!_OS 24.04 LTS (Kernel 6.18).
+- **Sistema Operacional:** Manjaro Linux x86_64.
 - **Compilador:** GCC 13.2.
 - **Bibliotecas:** OpenMP 4.5 e stb_image.
