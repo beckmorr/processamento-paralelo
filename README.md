@@ -59,5 +59,5 @@ Declaramos que este projeto contou com o auxílio da ferramenta de IA **Google G
 
 Como autores, atestamos que revisamos, testamos e validamos criticamente todo o conteúdo gerado, assumindo total e exclusiva responsabilidade pela correção lógica do código, precisão dos relatórios de desempenho e integridade acadêmica do material entregue.
 
-**Autores:** Anderson Morbeck Pires, Marco Túlio Macêdo Oliveira dos Santos
-**Data:** 28 de Maio de 2026
+**Autores:** Anderson Morbeck Pires, Marco Túlio Macêdo Oliveira dos Santos.
+**Data:** 28 de Maio de 2026.
