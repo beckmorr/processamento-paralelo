@@ -13,7 +13,7 @@ O projeto consiste na implementação do filtro de convolução utilizando másc
 - [x] **Sequencial (Baseline):** Implementação de referência em C, otimizada com flags de compilação (`-O3`, `-march=native`) para servir de base comparativa.
 - [x] **OpenMP (Memória Compartilhada):** Focado na exploração de múltiplos núcleos (P-cores e E-cores) em um único processador.
 - [x] **MPI (Memória Distribuída):** Focado na divisão de domínio e troca de mensagens entre processos, permitindo a execução em clusters de computadores.
-- [ ] **CUDA (GPU Computing):** Aceleração massivamente paralela para processamento de pixels em larga escala utilizando unidades de processamento gráfico.
+- [x] **CUDA (GPU Computing):** Aceleração massivamente paralela para processamento de pixels em larga escala utilizando unidades de processamento gráfico.
 
 ---
 
