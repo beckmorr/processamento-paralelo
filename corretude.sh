@@ -5,7 +5,7 @@ export LC_NUMERIC="C"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
-echo "=== RUNNING CHECKS: seq, mpi, omp ==="
+echo "=== RUNNING CHECKS: seq, mpi, omp, cuda ==="
 
 # ------------------------------ Sequencial ------------------------------
 echo "\n--- SEQ ---"
@@ -27,8 +27,6 @@ else
 fi
 OMP_NUM_THREADS=2 ./gauss_blur_omp --check
 
-echo "\n=== ALL CHECKS FINISHED ==="
-
 # ------------------------------ MPI ------------------------------
 echo "\n--- MPI (2 processes) ---"
 if command -v mpicc >/dev/null 2>&1; then
@@ -46,3 +44,19 @@ if command -v mpicc >/dev/null 2>&1; then
 else
   echo "mpicc not found; skipping MPI compile/run"
 fi
+
+# ------------------------------ CUDA ------------------------------
+echo "\n--- CUDA ---"
+if command -v nvcc >/dev/null 2>&1; then
+  if [ -f ./gauss_blur_cuda ]; then
+    echo "Using existing ./gauss_blur_cuda"
+  else
+    echo "Compiling gauss_blur_cuda.cu with nvcc..."
+    nvcc -O2 gauss_blur_cuda.cu -lm -o gauss_blur_cuda
+  fi
+  ./gauss_blur_cuda --check
+else
+  echo "nvcc not found; skipping CUDA compile/run"
+fi
+
+echo "\n=== ALL CHECKS FINISHED ==="
